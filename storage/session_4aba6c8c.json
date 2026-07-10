@@ -1,0 +1,25 @@
+{
+  "validated_fields": {},
+  "conversation_history": [
+    {
+      "role": "assistant",
+      "content": "Hello! I'm your Loan Eligibility Advisor. Please provide your Monthly Income, Existing EMI, Down Payment, and Loan Tenure."
+    },
+    {
+      "role": "user",
+      "content": "pm of india"
+    },
+    {
+      "role": "assistant",
+      "content": "Sorry, I didn't catch that. Could you please repeat?"
+    },
+    {
+      "role": "user",
+      "content": "pm of india"
+    },
+    {
+      "role": "assistant",
+      "content": "Sorry, I didn't catch that. Could you please repeat?"
+    }
+  ]
+}

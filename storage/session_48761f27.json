@@ -1,0 +1,17 @@
+{
+  "validated_fields": {},
+  "conversation_history": [
+    {
+      "role": "assistant",
+      "content": "Hello! To assist you with loan eligibility, could you please share your Monthly Income, Existing EMI, Down Payment, and Loan Tenure (in years or months)?"
+    },
+    {
+      "role": "user",
+      "content": "hello how are you"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm doing well, thank you! Now, could you please share your Monthly Income, Existing EMI, Down Payment, and Loan Tenure (in years or months)?"
+    }
+  ]
+}

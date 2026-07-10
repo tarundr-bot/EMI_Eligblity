@@ -1,0 +1,49 @@
+{
+  "validated_fields": {},
+  "conversation_history": [
+    {
+      "role": "assistant",
+      "content": "Hello! I can help you with loan eligibility. Could you please provide your Monthly Income, Existing EMI, Down Payment, and Loan Tenure (in years or months)?"
+    },
+    {
+      "role": "user",
+      "content": "hello how are you"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm doing well, thank you! Now, could you please share your Monthly Income, Existing EMI, Down Payment, and Loan Tenure (in years or months)?"
+    },
+    {
+      "role": "user",
+      "content": "pm of india"
+    },
+    {
+      "role": "assistant",
+      "content": "I can only assist with loan eligibility queries. Could you share your Monthly Income, Existing EMI, Down Payment, and Loan Tenure?"
+    },
+    {
+      "role": "user",
+      "content": "what is your name"
+    },
+    {
+      "role": "assistant",
+      "content": "I appreciate your curiosity! However, I can only assist with loan eligibility queries. Could you please provide your Monthly Income, Existing EMI, Down Payment, and Loan Tenure?"
+    },
+    {
+      "role": "user",
+      "content": "you are male or female"
+    },
+    {
+      "role": "assistant",
+      "content": "I can only assist with loan eligibility queries. Could you please share your Monthly Income, Existing EMI, Down Payment, and Loan Tenure?"
+    },
+    {
+      "role": "user",
+      "content": "who is your father"
+    },
+    {
+      "role": "assistant",
+      "content": "I can only assist with loan eligibility queries. Could you please provide your Monthly Income, Existing EMI, Down Payment, and Loan Tenure?"
+    }
+  ]
+}

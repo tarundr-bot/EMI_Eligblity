@@ -1,0 +1,9 @@
+{
+  "validated_fields": {},
+  "conversation_history": [
+    {
+      "role": "assistant",
+      "content": "Hello! I'm here to assist you with your loan eligibility. Could you please provide your Monthly Income, Existing EMI, Down Payment, and Loan Tenure (in years or months)?"
+    }
+  ]
+}

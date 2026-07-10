@@ -1,0 +1,25 @@
+{
+  "validated_fields": {
+    "monthly_income": 100000,
+    "existing_emi": 2000,
+    "down_payment": 500000,
+    "loan_tenure_years": 20
+  },
+  "backend_result": {
+    "error": "Backend server not running"
+  },
+  "conversation_history": [
+    {
+      "role": "assistant",
+      "content": "Hello! I can help you with loan eligibility. Could you please provide your Monthly Income, Existing EMI, Down Payment, and Loan Tenure (in years or months)?"
+    },
+    {
+      "role": "user",
+      "content": "1 lakh 2000emi and 5 lakh dp and for 20 years"
+    },
+    {
+      "role": "assistant",
+      "content": "I've noted your Monthly Income of \u20b9100,000, Existing EMI of \u20b92,000, Down Payment of \u20b9500,000, and Loan Tenure of 20 years."
+    }
+  ]
+}
