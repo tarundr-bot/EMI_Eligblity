@@ -1,0 +1,30 @@
+{
+  "validated_fields": {
+    "monthly_income": 100000.0,
+    "existing_emi": 30000.0,
+    "down_payment": 1000000.0,
+    "loan_tenure_months": 240.0
+  },
+  "conversation_history": [
+    {
+      "role": "assistant",
+      "content": "Hello! I'm here to help you determine your loan eligibility. To get started, could you please provide your:\n\n1. Monthly Income\n2. Existing Monthly EMI\n3. Down Payment\n4. Loan Tenure (in years or months)\n\nLet's take this step by step!"
+    },
+    {
+      "role": "user",
+      "content": "1lakh monthly income,30k emi ,10 lakh down payment and 2for 20 years"
+    },
+    {
+      "role": "assistant",
+      "content": "Thank you for the information! I will extract the details now."
+    },
+    {
+      "role": "assistant",
+      "content": "Based on your loan application, here\u2019s a clear explanation of your eligibility and key factors:\n\n1. **Eligibility**: You are eligible for the loan. This means that, based on the information you provided, the lender is willing to approve your application.\n\n2. **Key Factors**:\n   - **Debt-to-Income (DTI) Ratio**: Your DTI ratio is 30%. This ratio compares your monthly debt payments (existing EMI) to your monthly income. A lower DTI indicates that you are managing your debt well, and most lenders prefer a DTI below 40%.\n   - **Monthly Income and Existing EMI**: You have a monthly income of \u20b9100,000 and existing EMI payments of \u20b930,000. Your eligible loan amount is calculated based on these figures, ensuring your new EMI remains manageable.\n   - **Down Payment**: You are making a down payment of \u20b91,000,000, which reduces the amount you need to borrow and shows your commitment, positively impacting your eligibility.\n   - **Loan Tenure**: The loan tenure is set for 240 months (20 years), which affects your EMIs and interest payments. A longer tenure generally means lower EMIs, making it more affordable.\n\n3. **If Not Eligible**: Since you are eligible, there\u2019s no need for improvements at this moment. However, if you were not eligible, potential improvements could include:\n   - Reducing existing debt to lower your DTI ratio.\n   - Increasing your monthly income if possible.\n   - Making a larger down payment to decrease the loan amount needed.\n\nIf you have any more questions or need further assistance, feel free to ask!"
+    },
+    {
+      "role": "assistant",
+      "content": "Would you like to check eligibility with different parameters, or is there anything else I can help you with?"
+    }
+  ]
+}

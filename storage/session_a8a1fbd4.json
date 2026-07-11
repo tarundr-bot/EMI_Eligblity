@@ -1,0 +1,30 @@
+{
+  "validated_fields": {
+    "monthly_income": 100000.0,
+    "existing_emi": 30000.0,
+    "down_payment": 600000.0,
+    "loan_tenure_months": 60
+  },
+  "conversation_history": [
+    {
+      "role": "assistant",
+      "content": "Hello! I'm here to help you with your loan eligibility. Please provide your Monthly Income, Existing EMI, Down Payment, and Loan Tenure."
+    },
+    {
+      "role": "user",
+      "content": "1lakh monthly income and 30k emi and 6 lakh down payment and fo 6 years"
+    },
+    {
+      "role": "assistant",
+      "content": "Thank you for the information! I have extracted your Monthly Income as \u20b9100,000, Existing EMI as \u20b930,000, Down Payment as \u20b9600,000. However, I still need to confirm your Loan Tenure in months. Could you please provide that?"
+    },
+    {
+      "role": "user",
+      "content": "60 months"
+    },
+    {
+      "role": "assistant",
+      "content": "Great! I have noted your Loan Tenure as 60 months. Here's a summary of your information: Monthly Income: \u20b9100,000, Existing EMI: \u20b930,000, Down Payment: \u20b9600,000, Loan Tenure: 60 months. Everything looks good! You are eligible for a loan."
+    }
+  ]
+}
