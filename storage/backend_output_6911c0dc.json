@@ -1,8 +1,0 @@
-{
-  "eligible": true,
-  "max_loan_amount": 1038800.0,
-  "emi": 20000.0,
-  "interest_rate": 8.5,
-  "debt_to_income_ratio": 30.0,
-  "reason": null
-}

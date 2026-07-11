@@ -1,8 +1,0 @@
-{
-  "validated_fields": {
-    "monthly_income": 100000,
-    "existing_emi": 30000,
-    "down_payment": 1000000,
-    "loan_tenure_months": 240
-  }
-}
