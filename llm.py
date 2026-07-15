@@ -1,91 +1,157 @@
 import openai
-import os
-import re
 import json
+import random
 import configuration
 import loan_eligiblity_calculator_prompts
 
 
 def get_client():
-    return openai.OpenAI(api_key=configuration.OPENAI_API_KEY or os.environ.get("OPENAI_API_KEY"))
+    return openai.OpenAI(api_key=configuration.OPENAI_API_KEY)
+
+
+def _call_llm(system_prompt, user_content, temperature=None, max_tokens=None, json_mode=False):
+    """Reusable helper for all LLM calls."""
+    client = get_client()
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_content}
+    ]
+    kwargs = {
+        "model": configuration.MODEL_NAME,
+        "messages": messages,
+        "temperature": temperature if temperature is not None else configuration.TEMPERATURE,
+        "max_tokens": max_tokens or configuration.MAX_TOKENS,
+    }
+    if json_mode:
+        kwargs["response_format"] = {"type": "json_object"}
+    response = client.chat.completions.create(**kwargs)
+    content = response.choices[0].message.content
+    return json.loads(content) if json_mode else content.strip()
 
 
 # ---------------------------------------------------------------------------
-# Python-side normalizer: safety net if the LLM returns raw strings like
-# "30k", "1 lakh", "5 years", "60 months" instead of clean numbers.
-# Tenure is ALWAYS returned in years (int when whole).
+# Prompt 2: Extract raw, unstructured fields from user input
 # ---------------------------------------------------------------------------
-def normalize_value(field, raw):
-    """Convert '30k' / '1 lakh' / '5 years' / '60 months' into a clean number."""
-    if isinstance(raw, bool):
-        return None
+def extract_raw_fields(user_input, validated_fields=None):
+    required = configuration.REQUIRED_FIELDS
+    validated_fields = validated_fields or {}
+    collected = [f for f in required if f in validated_fields]
+    pending = [f for f in required if f not in validated_fields]
 
-    is_months = False
-    is_years_explicit = False
-    
-    if isinstance(raw, (int, float)):
-        num = float(raw)
-    else:
-        s = str(raw).lower().strip()
-        
-        # Reject negatives explicitly
-        if s.startswith('-') or s.startswith('−'):
-            return None
-        
-        # Check for keywords BEFORE stripping them (critical for tenure validation)
-        is_months = "month" in s
-        is_years_explicit = "year" in s or "yr" in s
-        
-        s = s.replace(",", "").replace("₹", "").replace("rs.", "").replace("rs", "")
-        mult = 1
-        if "crore" in s:
-            mult = 10000000
-        elif "lakh" in s:
-            mult = 100000
-        elif "k" in s:
-            mult = 1000
-        
-        # Keywords already captured above, now safe to strip them
-        for word in ["crore", "lakh", "k", "years", "year", "yrs", "yr", "months", "month"]:
-            s = s.replace(word, "")
-        
-        m = re.search(r"\d+\.?\d*", s)
-        if not m:
-            return None
-        num = float(m.group()) * mult
-
-    # Field-specific validation and normalization
-    if field == "monthly_income" and num >= 1000:
-        return int(num) if num == int(num) else num
-
-    if field == "existing_emi" and num >= 0:
-        return int(num) if num == int(num) else num
-
-    if field == "down_payment" and num >= 0:
-        return int(num) if num == int(num) else num
-
-    if field == "loan_tenure_years":
-        # "60 months" or bare number > 30 WITHOUT "year" keyword -> assume months
-        if is_months or (num > 30 and not is_years_explicit):
-            num = num / 12.0
-        # Reject if out of valid range (1-30 years)
-        if 1 <= num <= 30:
-            return int(num) if num == int(num) else round(num, 2)
-        return None
-
-    return None
+    context_msg = (
+        f"Already collected: {json.dumps(collected)}\n"
+        f"Pending: {json.dumps(pending)}\n\n"
+        f"User: \"{user_input}\""
+    )
+    try:
+        return _call_llm(
+            loan_eligiblity_calculator_prompts.EXTRACT_PROMPT,
+            context_msg,
+            temperature=0.0,  # Zero temperature for deterministic extraction
+            json_mode=True
+        )
+    except Exception as e:
+        print(f"\n[Extraction Error: {e}]")
+        return {}
 
 
 # ---------------------------------------------------------------------------
-# Main conversational call: one LLM call per user message.
+# Prompt 3 (Validation): Validate and normalize a single field
+# ---------------------------------------------------------------------------
+def validate_field(field_name, raw_value, known_monthly_income=None):
+    user_content = f"Field: {field_name}\nRaw Value: {raw_value}"
+    if known_monthly_income is not None:
+        user_content += f"\nKnown monthly_income: {known_monthly_income}"
+
+    try:
+        return _call_llm(
+            loan_eligiblity_calculator_prompts.VALIDATE_PROMPT,
+            user_content,
+            temperature=0.0,  # Zero temperature for reliable validation
+            json_mode=True
+        )
+    except Exception as e:
+        print(f"\n[Validation Error for {field_name}: {e}]")
+        return {
+            "field": field_name,
+            "valid": False,
+            "normalized_value": None,
+            "reason": "Could not validate field due to a technical error."
+        }
+
+# ---------------------------------------------------------------------------
+# Main conversational call: coordinates the modular prompt pipeline.
 # Returns {"response": str, "extracted_fields": dict, "all_fields_collected": bool}
 # ---------------------------------------------------------------------------
 def process_conversation(user_input, validated_fields, conversation_history):
     client = get_client()
-
     required = configuration.REQUIRED_FIELDS
-    missing = [f for f in required if f not in validated_fields]
 
+    # Step 1: Extract raw fields from latest user input (with context of what's already collected)
+    extracted = extract_raw_fields(user_input, validated_fields)
+
+    newly_validated = {}
+    clarifications = []
+
+    # Validate monthly_income first if it was provided, so it is available as context for EMI checks
+    ordered_fields = []
+    if "monthly_income" in extracted:
+        ordered_fields.append("monthly_income")
+    for f in extracted:
+        if f != "monthly_income" and f in required:
+            ordered_fields.append(f)
+
+    current_monthly_income = validated_fields.get("monthly_income")
+
+    # Step 2: Validate and normalize each extracted field
+    for field in ordered_fields:
+        raw_val = extracted[field]
+        val_result = validate_field(field, raw_val, current_monthly_income)
+
+        if val_result.get("valid"):
+            norm_val = val_result.get("normalized_value")
+            newly_validated[field] = norm_val
+            if field == "monthly_income":
+                current_monthly_income = norm_val
+        else:
+            reason = val_result.get("reason") or f"The value '{raw_val}' for {field} is invalid. Please provide a valid value."
+            clarifications.append(reason)
+
+    # Step 3: Python safety net/cross-checks for merged state
+    merged = {**validated_fields, **newly_validated}
+    income = merged.get("monthly_income")
+    emi = merged.get("existing_emi")
+
+    if income is not None and emi is not None and emi > income:
+        if "monthly_income" in newly_validated:
+            del newly_validated["monthly_income"]
+            msg = f"Your monthly income of ₹{income:,.0f} must be greater than your existing EMI of ₹{emi:,.0f}. Could you please re-provide your monthly income?"
+            clarifications.append(msg)
+        elif "existing_emi" in newly_validated:
+            del newly_validated["existing_emi"]
+            msg = f"Your existing EMI of ₹{emi:,.0f} cannot exceed your monthly income of ₹{income:,.0f}. Could you please re-provide your existing EMI?"
+            clarifications.append(msg)
+        merged = {**validated_fields, **newly_validated}
+
+    # If validation errors occurred, return them immediately
+    if clarifications:
+        return {
+            "response": "\n\n".join(clarifications),
+            "extracted_fields": newly_validated,
+            "all_fields_collected": False
+        }
+
+    # Step 4: Check if all required fields are now collected
+    all_fields_collected = all(f in merged for f in required)
+    if all_fields_collected:
+        return {
+            "response": "Thank you, all details have been collected.",
+            "extracted_fields": newly_validated,
+            "all_fields_collected": True
+        }
+
+    # Step 5: Call Prompt 1 (CONVERSATION_PROMPT) to generate next response for missing fields
+    missing = [f for f in required if f not in merged]
     messages = [
         {"role": "system", "content": loan_eligiblity_calculator_prompts.CONVERSATION_PROMPT}
     ]
@@ -93,11 +159,11 @@ def process_conversation(user_input, validated_fields, conversation_history):
         messages.append({"role": msg["role"], "content": msg["content"]})
 
     state_msg = f"""Current state:
-Collected: {json.dumps(validated_fields) if validated_fields else "None"}
+Collected: {json.dumps(merged) if merged else "None"}
 Still needed: {json.dumps(missing)}
 User said: "{user_input}"
 
-Respond with JSON only:"""
+Provide your friendly response to the user:"""
     messages.append({"role": "user", "content": state_msg})
 
     try:
@@ -105,131 +171,61 @@ Respond with JSON only:"""
             model=configuration.MODEL_NAME,
             messages=messages,
             temperature=configuration.TEMPERATURE,
-            max_tokens=500,
-            response_format={"type": "json_object"}
+            max_tokens=configuration.MAX_TOKENS
         )
-        result = json.loads(response.choices[0].message.content)
-
-        # Clean extracted fields through the normalizer (safety net)
-        cleaned = {}
-        for field, value in (result.get("extracted_fields") or {}).items():
-            if field not in required:
-                continue
-            num = normalize_value(field, value)
-            if num is None:
-                continue
-            cleaned[field] = num
-
-        # Cross-check on the MERGED state (catches income changed after EMI stored)
-        merged = {**validated_fields, **cleaned}
-        income = merged.get("monthly_income")
-        emi = merged.get("existing_emi")
-        
-        if income is not None and emi is not None and emi > income:
-            # Drop whichever was just added that caused the conflict
-            if "monthly_income" in cleaned:
-                del cleaned["monthly_income"]
-                note = " Monthly income must be greater than your existing EMI."
-            elif "existing_emi" in cleaned:
-                del cleaned["existing_emi"]
-                note = " Existing EMI cannot exceed monthly income."
-            else:
-                note = ""
-            result["response"] = (result.get("response") or "") + note
-            merged = {**validated_fields, **cleaned}
-
-        return {
-            "response": result.get("response") or "Could you please provide the missing details?",
-            "extracted_fields": cleaned,
-            "all_fields_collected": all(f in merged for f in required),
-        }
-
+        chat_response = response.choices[0].message.content.strip()
     except Exception as e:
-        print(f"\n[LLM Error: {e}]")
-        return {
-            "response": "Sorry, I didn't catch that. Could you please repeat?",
-            "extracted_fields": {},
-            "all_fields_collected": False,
-        }
+        print(f"\n[Conversation LLM Error: {e}]")
+        chat_response = "Could you please provide the missing details?"
+
+    return {
+        "response": chat_response,
+        "extracted_fields": newly_validated,
+        "all_fields_collected": False
+    }
 
 
 # ---------------------------------------------------------------------------
-# Greeting for a new conversation
+# Greeting for a new conversation (Prompt 1)
 # ---------------------------------------------------------------------------
 def get_initial_greeting():
-    client = get_client()
-    messages = [
-        {"role": "system", "content": loan_eligiblity_calculator_prompts.CONVERSATION_PROMPT},
-        {"role": "user", "content": (
-            "New conversation. Greet the user and ask for all four fields: "
-            "Monthly Income, Existing EMI, Down Payment, Loan Tenure "
-            "(in years or months). Keep it short."
-        )}
+    greetings = [
+        "Hello! I'm here to assist you with your loan eligibility. Could you please provide your Monthly Income, Existing EMI, Down Payment, and Loan Tenure (in years or months)?",
+        "Welcome! Let's check your loan eligibility. To get started, please provide your Monthly Income, Existing EMI, Down Payment, and Loan Tenure.",
+        "Hi there! I can help you calculate your eligible loan amount and EMI. Please share your Monthly Income, Existing EMI, Down Payment, and Loan Tenure to begin.",
+        "Greetings! Ready to check your loan options? Please provide your Monthly Income, Existing EMI, Down Payment, and Loan Tenure (years or months) so I can calculate your eligibility."
     ]
-    try:
-        response = client.chat.completions.create(
-            model=configuration.MODEL_NAME,
-            messages=messages,
-            temperature=configuration.TEMPERATURE,
-            max_tokens=150,
-            response_format={"type": "json_object"}
-        )
-        result = json.loads(response.choices[0].message.content)
-        return result.get("response", "Hello! Please provide your loan details.")
-    except Exception:
-        return (
-            "Hello! I'm your Loan Eligibility Advisor. Please provide your "
-            "Monthly Income, Existing EMI, Down Payment, and Loan Tenure."
-        )
+    return random.choice(greetings)
 
 
-# ---------------------------------------------------------------------------
-# ANSWER stage — confirm collected fields before backend
-# ---------------------------------------------------------------------------
 def ask_answer_confirm(validated_fields):
-    client = get_client()
-    user_msg = (
-        f"MODE: confirm\n\nValidated fields:\n"
-        f"{json.dumps(validated_fields, indent=2)}\n\n"
-        f"Summarize and confirm to user."
+    income = validated_fields.get("monthly_income", 0)
+    emi = validated_fields.get("existing_emi", 0)
+    down_payment = validated_fields.get("down_payment", 0)
+    tenure = validated_fields.get("loan_tenure_years", 0)
+    
+    return (
+        f"I'm sending off your details for assessment: "
+        f"a monthly income of ₹{income:,.0f}, "
+        f"existing EMI of ₹{emi:,.0f}, "
+        f"a down payment of ₹{down_payment:,.0f}, "
+        f"and a loan tenure of {tenure} years."
     )
-    messages = [
-        {"role": "system", "content": loan_eligiblity_calculator_prompts.ANSWER_PROMPT},
-        {"role": "user", "content": user_msg}
-    ]
-    try:
-        response = client.chat.completions.create(
-            model=configuration.MODEL_NAME,
-            messages=messages,
-            temperature=configuration.TEMPERATURE,
-            max_tokens=150
-        )
-        return response.choices[0].message.content.strip()
-    except Exception:
-        return "All details received. Processing your eligibility..."
 
 
 # ---------------------------------------------------------------------------
-# ANSWER stage — explain friend's backend result in natural language
+# ANSWER stage — explain friend's backend result in natural language (Prompt 4)
 # ---------------------------------------------------------------------------
 def ask_answer_explain(backend_result):
-    client = get_client()
     user_msg = (
         f"MODE: explain_result\n\nBackend result:\n"
         f"{json.dumps(backend_result, indent=2)}\n\n"
         f"Explain to user."
     )
-    messages = [
-        {"role": "system", "content": loan_eligiblity_calculator_prompts.ANSWER_PROMPT},
-        {"role": "user", "content": user_msg}
-    ]
     try:
-        response = client.chat.completions.create(
-            model=configuration.MODEL_NAME,
-            messages=messages,
-            temperature=configuration.TEMPERATURE,
-            max_tokens=200
+        return _call_llm(
+            loan_eligiblity_calculator_prompts.ANSWER_PROMPT,
+            user_msg
         )
-        return response.choices[0].message.content.strip()
     except Exception:
         return f"Result: {json.dumps(backend_result)}"
